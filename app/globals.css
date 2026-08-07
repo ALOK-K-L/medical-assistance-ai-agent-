@@ -1,26 +1,144 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #020617; /* Very dark blue */
+  --foreground: #e2e8f0;
+  --cyan-primary: #00f0ff;
+  --cyan-dim: rgba(0, 240, 255, 0.2);
+  --cyan-glow: 0 0 10px rgba(0, 240, 255, 0.6), 0 0 20px rgba(0, 240, 255, 0.4);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-cyan-primary: var(--cyan-primary);
+  --color-cyan-dim: var(--cyan-dim);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-mono), monospace;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(0, 60, 100, 0.2) 0%, transparent 60%),
+    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+
+/* Sci-fi Panel with Chamfered Corners */
+.sci-fi-panel {
+  position: relative;
+  background: rgba(2, 10, 25, 0.7);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  clip-path: polygon(
+    15px 0, 
+    100% 0, 
+    100% calc(100% - 15px), 
+    calc(100% - 15px) 100%, 
+    0 100%, 
+    0 15px
+  );
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+}
+
+.sci-fi-panel:hover {
+  border-color: var(--cyan-primary);
+  box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.1);
+}
+
+/* Decorative corner accents */
+.sci-fi-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 15px;
+  height: 2px;
+  background: var(--cyan-primary);
+  box-shadow: var(--cyan-glow);
+}
+
+.sci-fi-panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 15px;
+  height: 2px;
+  background: var(--cyan-primary);
+  box-shadow: var(--cyan-glow);
+}
+
+/* Sci-fi Button */
+.sci-fi-button {
+  background: transparent;
+  color: var(--cyan-primary);
+  border: 1px solid var(--cyan-primary);
+  padding: 8px 16px;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 1px;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.sci-fi-button:hover {
+  background: rgba(0, 240, 255, 0.1);
+  box-shadow: var(--cyan-glow);
+  text-shadow: 0 0 5px var(--cyan-primary);
+}
+
+.sci-fi-input {
+  background: rgba(0, 20, 40, 0.5);
+  border: 1px solid rgba(0, 240, 255, 0.5);
+  color: var(--cyan-primary);
+  padding: 10px 15px;
+  outline: none;
+  width: 100%;
+}
+.sci-fi-input:focus {
+  border-color: var(--cyan-primary);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+/* Scrollbar styling for chat */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 20, 40, 0.5); 
+}
+::-webkit-scrollbar-thumb {
+  background: var(--cyan-primary); 
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #fff; 
+}
+
+/* Scanline effect */
+.scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0),
+    rgba(255,255,255,0) 50%,
+    rgba(0, 240, 255, 0.05) 50%,
+    rgba(0, 240, 255, 0.05)
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.6;
 }

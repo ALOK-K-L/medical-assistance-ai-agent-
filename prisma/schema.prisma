@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Example Schema for a Hackathon
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  role      String   @default("participant") // participant, mentor, judge
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projects  Project[]
+  appointments Appointment[]
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  status      String   @default("ideation") // ideation, building, submitted
+  repoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+// Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Clinic Framework Models
+model Doctor {
+  id           String        @id @default(uuid())
+  name         String
+  specialty    String
+  availability String        @default("Available") // Available, In Surgery, Off Duty
+  appointments Appointment[]
+}
+
+model Room {
+  id           String        @id @default(uuid())
+  roomNumber   String        @unique
+  purpose      String        // e.g., Consultation, Surgery
+  isOccupied   Boolean       @default(false)
+  beds         Int           @default(1)
+  appointments Appointment[]
+}
+
+model Appointment {
+  id        String   @id @default(uuid())
+  time      DateTime
+  reason    String
+  
+  // Relations
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// System Configuration
+model ApiKey {
+  provider  String   @id // e.g., 'openai', 'anthropic', 'groq', 'openrouter'
+  key       String   // The actual API key
+  updatedAt DateTime @updatedAt
+}
+
+model GlobalSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Clinical Triage Models
+model Patient {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  details       String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  triageRecords TriageRecord[]
+}
+
+model TriageRecord {
+  id            String   @id @default(uuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id])
+  criticalScore Int      // 0-100 severity score
+  analysis      String   // AI generated analysis explanation
+  symptoms      String   // Symptoms entered by nurse
+  imageUrl      String?  // Optional uploaded image/ECG (e.g. Base64 or URL)
+  status        String   @default("waiting") // waiting, treated, dismissed
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
