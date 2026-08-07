@@ -54,7 +54,7 @@ export default function AuditLogsPage() {
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
                     <div className="p-4 border-b border-slate-800 bg-slate-950 flex items-center gap-2">
                         <Lock className="h-4 w-4 text-emerald-500" />
-                        <span className="text-xs font-mono text-emerald-500 uppercase tracking-widest font-bold">Encrypted Audit Trail Active</span>
+                        <span className="text-xs font-mono text-emerald-500 uppercase tracking-widest font-bold">PHI-Masked Audit Trail Active</span>
                     </div>
                     
                     <div className="overflow-x-auto">

@@ -361,6 +361,20 @@ export async function POST(req: Request) {
                         required: ["patientName", "symptoms"]
                     }
                 }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "check_drug_interactions",
+                    description: "Check for dangerous drug-drug interactions between two or more medications. Use this whenever a patient's prescription involves multiple drugs.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            drugs: { type: "string", description: "Comma-separated list of drug names (e.g., 'Warfarin, Aspirin, Metformin')." }
+                        },
+                        required: ["drugs"]
+                    }
+                }
             }
         ];
 
@@ -508,6 +522,49 @@ export async function POST(req: Request) {
                         });
                         logAudit("ADMIT_PATIENT", `Agent admitted new patient: ${args.patientName}`, newPatient.id);
                         result = { success: true, message: `Patient ${args.patientName} has been successfully admitted and added to the Patient Queue.`, patient: newPatient };
+                    } else if (funcName === 'check_drug_interactions') {
+                        const drugList = (args.drugs as string).split(',').map((d: string) => d.trim().toLowerCase());
+                        // Known dangerous interactions database
+                        const INTERACTIONS: Record<string, { with: string; severity: string; warning: string }[]> = {
+                            'warfarin': [
+                                { with: 'aspirin', severity: 'HIGH', warning: 'Increased risk of bleeding. Monitor INR closely.' },
+                                { with: 'ibuprofen', severity: 'HIGH', warning: 'NSAIDs increase anticoagulant effect and GI bleeding risk.' },
+                                { with: 'amiodarone', severity: 'CRITICAL', warning: 'Amiodarone inhibits warfarin metabolism. Dose reduction required.' }
+                            ],
+                            'metformin': [
+                                { with: 'alcohol', severity: 'HIGH', warning: 'Risk of lactic acidosis.' },
+                                { with: 'contrast dye', severity: 'CRITICAL', warning: 'Hold metformin 48h before/after contrast imaging.' }
+                            ],
+                            'lisinopril': [
+                                { with: 'potassium', severity: 'MODERATE', warning: 'Risk of hyperkalemia. Monitor serum potassium.' },
+                                { with: 'spironolactone', severity: 'HIGH', warning: 'Additive hyperkalemia risk.' }
+                            ],
+                            'simvastatin': [
+                                { with: 'amiodarone', severity: 'HIGH', warning: 'Increased risk of rhabdomyolysis. Max simvastatin 20mg.' },
+                                { with: 'grapefruit', severity: 'MODERATE', warning: 'CYP3A4 inhibition increases statin levels.' }
+                            ],
+                            'ssri': [
+                                { with: 'tramadol', severity: 'CRITICAL', warning: 'Risk of serotonin syndrome.' },
+                                { with: 'maoi', severity: 'CRITICAL', warning: 'Potentially fatal serotonin syndrome. Contraindicated.' }
+                            ]
+                        };
+                        const foundInteractions: any[] = [];
+                        for (const drug of drugList) {
+                            const known = INTERACTIONS[drug];
+                            if (known) {
+                                for (const interaction of known) {
+                                    if (drugList.includes(interaction.with)) {
+                                        foundInteractions.push({ drug1: drug, drug2: interaction.with, severity: interaction.severity, warning: interaction.warning });
+                                    }
+                                }
+                            }
+                        }
+                        logAudit("DRUG_CHECK", `Checked interactions for: ${args.drugs}`, "N/A");
+                        if (foundInteractions.length > 0) {
+                            result = { success: true, interactionsFound: true, count: foundInteractions.length, interactions: foundInteractions, message: `⚠️ Found ${foundInteractions.length} drug interaction(s). Review immediately.` };
+                        } else {
+                            result = { success: true, interactionsFound: false, count: 0, message: `No known dangerous interactions found between: ${args.drugs}.` };
+                        }
                     } else {
                         result = { error: 'Unknown tool' };
                     }

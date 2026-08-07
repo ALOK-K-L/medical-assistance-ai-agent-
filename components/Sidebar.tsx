@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, BarChart3, Activity, MessageSquare, Trash2, Plus, Menu, X, Cpu, ScanSearch, Watch, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, BarChart3, Activity, MessageSquare, Trash2, Plus, Menu, X, Cpu, ScanSearch, Watch, ShieldCheck, Network, BookOpen } from 'lucide-react';
 
 export default function Sidebar() {
     const pathname = usePathname();
     const [history, setHistory] = useState<any[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash');
     const [isOpen, setIsOpen] = useState(false);
+    const [latency, setLatency] = useState<number | null>(null);
 
     useEffect(() => {
         // Load model preference
@@ -26,7 +27,23 @@ export default function Sidebar() {
         };
         loadHistory();
         window.addEventListener('chatHistoryUpdated', loadHistory);
-        return () => window.removeEventListener('chatHistoryUpdated', loadHistory);
+        
+        // Real latency measurement
+        const measureLatency = async () => {
+            try {
+                const start = performance.now();
+                await fetch('/api/chat', { method: 'GET' });
+                const end = performance.now();
+                setLatency(Math.round(end - start));
+            } catch (e) { setLatency(null); }
+        };
+        measureLatency();
+        const latencyInterval = setInterval(measureLatency, 15000);
+
+        return () => {
+            window.removeEventListener('chatHistoryUpdated', loadHistory);
+            clearInterval(latencyInterval);
+        };
     }, []);
 
     const deleteChat = (e: any, id: string) => {
@@ -54,6 +71,8 @@ export default function Sidebar() {
         { name: 'X-Ray Analyzer', href: '/analyzer', icon: ScanSearch },
         { name: 'Wearable Simulator', href: '/wearables', icon: Watch },
         { name: 'HIPAA Audit Logs', href: '/audit', icon: ShieldCheck },
+        { name: 'Architecture', href: '/architecture', icon: Network },
+        { name: 'API Docs', href: '/api-docs', icon: BookOpen },
     ];
 
     return (
@@ -165,7 +184,7 @@ export default function Sidebar() {
                     </div>
                     <div className="flex justify-between items-center text-xs text-slate-500 font-medium mb-4">
                         <span>Latency</span>
-                        <span className="text-emerald-600 font-bold">{selectedModel === 'ollama/medgemma:4b' ? '12ms' : '24ms'}</span>
+                        <span className="text-emerald-600 font-bold">{latency !== null ? `${latency}ms` : 'measuring...'}</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-md">
