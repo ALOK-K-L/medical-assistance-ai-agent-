@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         };
 
         const baseUrl = getKey('aicredit_url', 'https://api.aicredits.in/v1');
-        const apiKey = getKey('aicredit', process.env.AICREDIT_API_KEY || 'sk-live-f21d41923f6ca090dc26915b5ac4eb1e3907b32496718dd1e7f84031e93bb03b');
+        const apiKey = getKey('aicredit', process.env.AICREDIT_API_KEY || '');
         
         const client = new OpenAI({ baseURL: baseUrl, apiKey: apiKey });
 

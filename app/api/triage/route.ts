@@ -9,23 +9,67 @@ const MODEL_NAME = 'google/gemini-2.5-flash';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, details, symptoms, imageUrl } = body;
+        const { unstructuredText, name, details, symptoms, imageUrl } = body;
 
-        if (!name || !symptoms) {
-            return NextResponse.json({ error: 'Name and symptoms are required' }, { status: 400 });
+        let finalName = name;
+        let finalSymptoms = symptoms;
+        let finalDetails = details || '';
+        const apiKey = process.env.AICREDIT_API_KEY || '';
+
+        // 1. Agentic Extraction Pass
+        if (unstructuredText) {
+            const extractionPrompt = `Extract the patient's name, symptoms, and any medical details from the following emergency admission text.
+If the name is unknown, use "To be updated". If details are unknown, leave empty.
+Text: "${unstructuredText}"
+
+Return purely a JSON object (no markdown):
+{ "name": "string", "symptoms": "string", "details": "string" }`;
+
+            try {
+                const extractRes = await fetch(AICREDIT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: MODEL_NAME,
+                        messages: [{ role: 'user', content: extractionPrompt }],
+                        temperature: 0.1
+                    })
+                });
+                
+                if (extractRes.ok) {
+                    const exData = await extractRes.json();
+                    const exText = exData.choices?.[0]?.message?.content || '{}';
+                    const jsonStr = exText.replace(/```json\n?|\n?```/g, '').trim();
+                    const parsed = JSON.parse(jsonStr);
+                    finalName = parsed.name || "To be updated";
+                    finalSymptoms = parsed.symptoms || unstructuredText;
+                    finalDetails = parsed.details || "";
+                } else {
+                    finalName = "To be updated";
+                    finalSymptoms = unstructuredText;
+                }
+            } catch (e) {
+                console.error("Extraction error", e);
+                finalName = "To be updated";
+                finalSymptoms = unstructuredText;
+            }
         }
 
-        // 1. Database Lookup / Profile Creation
+        if (!finalName || !finalSymptoms) {
+            return NextResponse.json({ error: 'Input is required' }, { status: 400 });
+        }
+
+        // 2. Database Lookup / Profile Creation
         let patient = await prisma.patient.findUnique({
-            where: { name },
+            where: { name: finalName },
             include: { triageRecords: { orderBy: { createdAt: 'desc' }, take: 3 } } // Fetch recent history
         });
 
         if (!patient) {
             patient = await prisma.patient.create({
                 data: {
-                    name,
-                    details: details || '',
+                    name: finalName,
+                    details: finalDetails,
                 },
                 include: { triageRecords: true }
             });
@@ -36,23 +80,23 @@ export async function POST(request: Request) {
             ? `Past History:\n${patient.triageRecords.map((r: any) => `- Score: ${r.criticalScore}, Symptoms: ${r.symptoms}`).join('\n')}`
             : `No past history for this patient.`;
 
-        // 3. Multimodal Prompt for Gemini 2.5 Flash
         const messages: any[] = [
             {
                 role: 'system',
                 content: `You are an expert Clinical Triage AI assistant for an emergency department. 
 Your job is to analyze the patient's symptoms, medical details, past history, and any attached images (like an ECG or wound photo) to provide a real-time clinical assessment.
-You MUST output your response purely as a JSON object with the following keys:
+
+CRITICAL INSTRUCTION: You MUST output your response strictly as a JSON object. Do NOT include ANY conversational text, pleasantries, or explanations outside of the JSON object. Do NOT say "Here is the analysis". Just output the raw JSON.
+
+The JSON object must have exactly these keys:
 - "criticalScore": An integer from 0 to 100 where 100 is immediately life-threatening, and 0 is completely stable.
 - "analysis": A clear, concise clinical explanation of your reasoning (max 4 sentences).
-- "recommendedAction": Immediate next steps for the nursing staff.
-
-Do NOT include markdown formatting outside the JSON, just return valid JSON.`
+- "recommendedAction": Immediate next steps for the nursing staff.`
             }
         ];
 
         let userMessageContent: any[] = [
-            { type: 'text', text: `Patient Name: ${name}\nDetails: ${details || 'None'}\nSymptoms: ${symptoms}\n\n${historyText}` }
+            { type: 'text', text: `Patient Name: ${finalName}\nDetails: ${finalDetails || 'None'}\nSymptoms: ${finalSymptoms}\n\n${historyText}` }
         ];
 
         if (imageUrl) {
@@ -70,8 +114,6 @@ Do NOT include markdown formatting outside the JSON, just return valid JSON.`
         });
 
         // 4. Call AICredit API (Gemini 2.5 Flash)
-        const apiKey = process.env.AICREDIT_API_KEY || 'sk-live-f21d41923f6ca090dc26915b5ac4eb1e3907b32496718dd1e7f84031e93bb03b';
-        
         const aiResponse = await fetch(AICREDIT_URL, {
             method: 'POST',
             headers: {
@@ -81,7 +123,8 @@ Do NOT include markdown formatting outside the JSON, just return valid JSON.`
             body: JSON.stringify({
                 model: MODEL_NAME,
                 messages,
-                temperature: 0.1 // Low temperature for consistent clinical output
+                temperature: 0.1,
+                response_format: { type: "json_object" }
             })
         });
 
@@ -114,7 +157,7 @@ Do NOT include markdown formatting outside the JSON, just return valid JSON.`
                 patientId: patient.id,
                 criticalScore: triageResult.criticalScore || 50,
                 analysis: triageResult.analysis || 'No analysis provided',
-                symptoms,
+                symptoms: finalSymptoms,
                 imageUrl: imageUrl ? 'Image attached' : null,
                 status: 'waiting'
             }

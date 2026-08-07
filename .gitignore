@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local databases
+*.db
+*.db-journal
+
+# test scripts & scratch logs
+test-*.js
+Voice Agent Database Integration@new1.md
+clear_clinic_data.js
+

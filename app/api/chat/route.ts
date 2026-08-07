@@ -147,8 +147,7 @@ When analyzing symptoms, images, or clinical data:
 - Do NOT refuse to analyze symptoms or images. Do NOT say "I cannot provide medical advice" or add excessive disclaimers.
 - Do NOT call yourself anything other than LifeBeat. Do NOT say you are Neurobot, Yelan, MedGemma, or any other name.
 - Be confident, precise, and clinically articulate.
-- Keep responses structured with clear headings and bullet points.
-- When no patient data is found, suggest the clinician use the "Admit Patient" button in the Patient Queue to register them.`;
+- If a patient does NOT exist in the database, DO NOT tell the user to use a button. Use your 'admit_patient' tool to register them and log their symptoms immediately!`;
 
 export async function POST(req: Request) {
     const startTime = Date.now();
@@ -257,7 +256,7 @@ export async function POST(req: Request) {
         } else if (isAICredit) {
             actualModel = requestedModel.replace('aicredit/', ''); 
             const baseUrl = getKey('aicredit_url', 'https://api.aicredits.in/v1');
-            const apiKey = getKey('aicredit', process.env.AICREDIT_API_KEY || 'sk-live-f21d41923f6ca090dc26915b5ac4eb1e3907b32496718dd1e7f84031e93bb03b');
+            const apiKey = getKey('aicredit', process.env.AICREDIT_API_KEY || '');
             client = new OpenAI({ baseURL: baseUrl, apiKey: apiKey });
         } else if (isOpenAI) {
             actualModel = requestedModel.replace('openai/', '');
@@ -265,7 +264,7 @@ export async function POST(req: Request) {
         } else if (isGoogle) {
             actualModel = requestedModel; // "google/gemini-2.5-flash"
             const baseUrl = getKey('aicredit_url', 'https://api.aicredits.in/v1');
-            const apiKey = getKey('aicredit', process.env.AICREDIT_API_KEY || 'sk-live-f21d41923f6ca090dc26915b5ac4eb1e3907b32496718dd1e7f84031e93bb03b');
+            const apiKey = getKey('aicredit', process.env.AICREDIT_API_KEY || '');
             client = new OpenAI({ baseURL: baseUrl, apiKey: apiKey });
         } else {
             actualModel = requestedModel.replace('groq/', '');
@@ -340,6 +339,22 @@ export async function POST(req: Request) {
                     name: "update_medical_record",
                     description: "Update a patient's active medical details in the database.",
                     parameters: { type: "object", properties: { patientId: { type: "string", description: "The UUID of the patient" }, newDetails: { type: "string", description: "The updated clinical details to save" } }, required: ["patientId", "newDetails"] }
+                }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "admit_patient",
+                    description: "Automatically register a new patient in the hospital system and log their initial symptoms for triage.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            patientName: { type: "string", description: "The name of the new patient." },
+                            medicalDetails: { type: "string", description: "Any known medical history or demographics (e.g., '12-year-old male')." },
+                            symptoms: { type: "string", description: "The present symptoms or injuries." }
+                        },
+                        required: ["patientName", "symptoms"]
+                    }
                 }
             }
         ];
@@ -441,6 +456,23 @@ export async function POST(req: Request) {
                             data: { details: args.newDetails }
                         });
                         result = { success: true, message: "Medical record updated successfully.", patient: updated };
+                    } else if (funcName === 'admit_patient') {
+                        const newPatient = await prisma.patient.create({
+                            data: {
+                                name: args.patientName,
+                                details: args.medicalDetails || '',
+                                triageRecords: {
+                                    create: {
+                                        symptoms: args.symptoms,
+                                        criticalScore: 50, // Default pending full AI analysis
+                                        analysis: "Initial voice registration. Awaiting full clinical analysis.",
+                                        status: "waiting"
+                                    }
+                                }
+                            },
+                            include: { triageRecords: true }
+                        });
+                        result = { success: true, message: `Patient ${args.patientName} has been successfully admitted and added to the Patient Queue.`, patient: newPatient };
                     } else {
                         result = { error: 'Unknown tool' };
                     }

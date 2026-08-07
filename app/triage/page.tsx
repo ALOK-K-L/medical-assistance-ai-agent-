@@ -4,9 +4,7 @@ import { useState, useEffect } from 'react';
 import { Camera, FileText, Activity, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 export default function TriageDashboard() {
-    const [name, setName] = useState('');
-    const [details, setDetails] = useState('');
-    const [symptoms, setSymptoms] = useState('');
+    const [unstructuredText, setUnstructuredText] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +54,7 @@ export default function TriageDashboard() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name || !symptoms) return;
+        if (!unstructuredText) return;
 
         setIsLoading(true);
         try {
@@ -69,9 +67,7 @@ export default function TriageDashboard() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name,
-                    details,
-                    symptoms,
+                    unstructuredText,
                     imageUrl: base64Image
                 })
             });
@@ -79,9 +75,7 @@ export default function TriageDashboard() {
             if (res.ok) {
                 await fetchQueue();
                 // Reset form
-                setName('');
-                setDetails('');
-                setSymptoms('');
+                setUnstructuredText('');
                 setImageFile(null);
                 setPreviewUrl(null);
             } else {
@@ -128,37 +122,17 @@ export default function TriageDashboard() {
                         
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Patient Name *</label>
-                                <input 
-                                    type="text" 
-                                    value={name}
-                                    onChange={e => setName(e.target.value)}
-                                    required
-                                    className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="e.g. John Doe"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Medical Details / History</label>
-                                <input 
-                                    type="text" 
-                                    value={details}
-                                    onChange={e => setDetails(e.target.value)}
-                                    className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="e.g. Diabetic, allergic to penicillin"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Current Symptoms & Vitals *</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                    <Activity className="h-4 w-4 text-blue-600" /> Agentic Emergency Input
+                                </label>
+                                <p className="text-xs text-slate-500 mb-3">Type the patient's name, details, and symptoms in plain English. The AI will extract the data, search history, and triage automatically. If the name is unknown, it will be marked "To be updated".</p>
                                 <textarea 
-                                    value={symptoms}
-                                    onChange={e => setSymptoms(e.target.value)}
+                                    value={unstructuredText}
+                                    onChange={e => setUnstructuredText(e.target.value)}
                                     required
-                                    rows={4}
-                                    className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
-                                    placeholder="Describe symptoms, BP, Heart Rate, SpO2..."
+                                    rows={5}
+                                    className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none shadow-inner"
+                                    placeholder="e.g. Admit Ram Madhav, he is complaining of severe chest pain and numbness in his left arm..."
                                 />
                             </div>
 

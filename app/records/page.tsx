@@ -26,8 +26,10 @@ export default function MedicalRecordsPage() {
 
     // Editing State
     const [isEditing, setIsEditing] = useState(false);
+    const [draftName, setDraftName] = useState('');
     const [draftDetails, setDraftDetails] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // AI Assist State
     const [aiInstructions, setAiInstructions] = useState('');
@@ -53,6 +55,7 @@ export default function MedicalRecordsPage() {
 
     const handlePatientClick = (p: Patient) => {
         setSelectedPatient(p);
+        setDraftName(p.name);
         setDraftDetails(p.details || '');
         setIsEditing(false);
         setAiInstructions('');
@@ -66,21 +69,44 @@ export default function MedicalRecordsPage() {
             const res = await fetch('/api/records', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patientId: selectedPatient.id, details: draftDetails })
+                body: JSON.stringify({ patientId: selectedPatient.id, name: draftName, details: draftDetails })
             });
             if (res.ok) {
                 // Update local state
                 const updatedPatients = patients.map(p => 
-                    p.id === selectedPatient.id ? { ...p, details: draftDetails } : p
+                    p.id === selectedPatient.id ? { ...p, name: draftName, details: draftDetails } : p
                 );
                 setPatients(updatedPatients);
-                setSelectedPatient({ ...selectedPatient, details: draftDetails });
+                setSelectedPatient({ ...selectedPatient, name: draftName, details: draftDetails });
                 setIsEditing(false);
             }
         } catch (e) {
             console.error(e);
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleDeletePatient = async () => {
+        if (!selectedPatient) return;
+        if (!window.confirm(`Are you sure you want to permanently delete ${selectedPatient.name}?`)) return;
+
+        setIsDeleting(true);
+        try {
+            const res = await fetch('/api/records', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ patientId: selectedPatient.id })
+            });
+            if (res.ok) {
+                setPatients(patients.filter(p => p.id !== selectedPatient.id));
+                setSelectedPatient(null);
+            }
+        } catch (e) {
+            console.error("Failed to delete patient", e);
+            alert("An error occurred while deleting the patient.");
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -187,11 +213,27 @@ export default function MedicalRecordsPage() {
                         {/* Header */}
                         <div className="flex items-center justify-between mb-8">
                             <div>
-                                <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedPatient.name}</h1>
+                                {isEditing ? (
+                                    <input 
+                                        type="text" 
+                                        value={draftName} 
+                                        onChange={e => setDraftName(e.target.value)} 
+                                        className="text-3xl font-black text-slate-800 tracking-tight bg-slate-100 border border-slate-300 rounded-lg px-3 py-1 outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-md mb-1"
+                                    />
+                                ) : (
+                                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedPatient.name}</h1>
+                                )}
                                 <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
                                     <FileText className="h-4 w-4" /> Medical Record
                                 </p>
                             </div>
+                            <button 
+                                onClick={handleDeletePatient}
+                                disabled={isDeleting || isEditing}
+                                className="text-xs font-bold uppercase tracking-wider text-red-600 bg-red-50 px-4 py-2 rounded-xl hover:bg-red-100 transition-colors border border-red-200/50 flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : '✕ Delete Patient'}
+                            </button>
                         </div>
 
                         {/* Two Column Layout */}
@@ -227,7 +269,7 @@ export default function MedicalRecordsPage() {
                                             />
                                             <div className="flex items-center justify-end gap-3">
                                                 <button 
-                                                    onClick={() => { setIsEditing(false); setDraftDetails(selectedPatient.details || ''); }}
+                                                    onClick={() => { setIsEditing(false); setDraftName(selectedPatient.name); setDraftDetails(selectedPatient.details || ''); }}
                                                     className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
                                                 >
                                                     Cancel

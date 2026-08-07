@@ -454,7 +454,11 @@ function CopilotDashboard() {
         setIsSending(true);
 
         try {
-            const modelToUse = localStorage.getItem('llm_model') || 'groq/llama-3.1-8b-instant';
+            let modelToUse = localStorage.getItem('llm_model') || 'google/gemini-2.5-flash';
+            if (imageData) {
+                // Force a multimodal model if an image is attached to prevent crashes
+                modelToUse = 'google/gemini-2.5-flash';
+            }
 
             // Build messages payload for API – include image as multimodal content
             const apiMessages: any[] = localMessages

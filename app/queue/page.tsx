@@ -8,9 +8,7 @@ export default function PatientQueuePage() {
     const [showAdmitModal, setShowAdmitModal] = useState(false);
     
     // Admit Form State
-    const [name, setName] = useState('');
-    const [details, setDetails] = useState('');
-    const [symptoms, setSymptoms] = useState('');
+    const [unstructuredText, setUnstructuredText] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,7 +52,7 @@ export default function PatientQueuePage() {
 
     const handleAdmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name || !symptoms) return;
+        if (!unstructuredText) return;
 
         setIsSubmitting(true);
         try {
@@ -64,12 +62,12 @@ export default function PatientQueuePage() {
             const res = await fetch('/api/triage', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, details, symptoms, imageUrl: base64Image })
+                body: JSON.stringify({ unstructuredText, imageUrl: base64Image })
             });
 
             if (res.ok) {
                 await fetchQueue();
-                setName(''); setDetails(''); setSymptoms(''); setImageFile(null); setPreviewUrl(null);
+                setUnstructuredText(''); setImageFile(null); setPreviewUrl(null);
                 setShowAdmitModal(false);
             } else {
                 alert("Failed to submit triage data.");
@@ -265,16 +263,11 @@ export default function PatientQueuePage() {
                         </div>
                         <form onSubmit={handleAdmit} className="p-8 space-y-6">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Patient Name</label>
-                                <input type="text" value={name} onChange={e=>setName(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-medium transition-all text-slate-800 placeholder:text-slate-400" placeholder="e.g. John Doe" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Medical Details (Age, History)</label>
-                                <input type="text" value={details} onChange={e=>setDetails(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-medium transition-all text-slate-800 placeholder:text-slate-400" placeholder="e.g. 55 y/o, diabetic" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Presenting Symptoms / Vitals</label>
-                                <textarea value={symptoms} onChange={e=>setSymptoms(e.target.value)} required rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-medium transition-all text-slate-800 placeholder:text-slate-400 resize-none" placeholder="Describe symptoms..."></textarea>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <Activity className="h-4 w-4 text-blue-500" /> Agentic Emergency Input
+                                </label>
+                                <p className="text-[10px] text-slate-400 mb-2 font-medium">Type the patient's name, details, and symptoms in plain English. The AI will extract the data, search history, and triage automatically. If the name is unknown, it will be marked "To be updated".</p>
+                                <textarea value={unstructuredText} onChange={e=>setUnstructuredText(e.target.value)} required rows={4} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-medium transition-all text-slate-800 placeholder:text-slate-400 resize-none shadow-inner" placeholder="e.g. Admit Ram Madhav, he is complaining of severe chest pain..."></textarea>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Attach Multimodal Context (ECG, Labs)</label>
