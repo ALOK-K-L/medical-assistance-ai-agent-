@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { logAudit } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export async function GET() {
             orderBy: { updatedAt: 'desc' }
         });
 
+        logAudit("VIEW_REGISTRY", "User viewed full patient registry", "MULTIPLE");
         return NextResponse.json({ patients });
     } catch (e: any) {
         console.error("GET /api/records Error:", e);
@@ -39,6 +41,7 @@ export async function POST(req: Request) {
             data: dataToUpdate
         });
 
+        logAudit("UPDATE_RECORD", "User manually updated patient record via Dashboard", updatedPatient.id);
         return NextResponse.json({ success: true, patient: updatedPatient });
     } catch (e: any) {
         console.error("POST /api/records Error:", e);
@@ -64,6 +67,8 @@ export async function DELETE(req: Request) {
         await prisma.patient.delete({
             where: { id: patientId }
         });
+
+        logAudit("DELETE_RECORD", "User permanently deleted patient record and associated PHI", patientId);
 
         return NextResponse.json({ success: true });
     } catch (e: any) {

@@ -2,6 +2,7 @@ import { OpenAI } from 'openai';
 import { sendWhatsAppTemplateMessage } from '@/lib/whatsapp';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import prisma from '@/lib/db';
+import { logAudit } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -209,9 +210,23 @@ export async function POST(req: Request) {
         }
 
         // ─────────────────────────────────────────────────────────────────
+        // PROVIDER ROUTING SETUP
+        // ─────────────────────────────────────────────────────────────────
+        const requestedModel = typeof payload.model === 'string' ? payload.model : 'groq/llama-3.1-8b-instant';
+        const isOllama = requestedModel.startsWith('ollama/');
+        const isNvidia = requestedModel.startsWith('nvidia/');
+        const isOpenAI = requestedModel.startsWith('openai/');
+        const isAICredit = requestedModel.startsWith('aicredit/');
+        const isGoogle = requestedModel.startsWith('google/');
+
+        // ─────────────────────────────────────────────────────────────────
         // SYSTEM PROMPT — Always use LifeBeat agent prompt
         // ─────────────────────────────────────────────────────────────────
-        const fullSystemPrompt = LIFEBEAT_SYSTEM_PROMPT + patientContext;
+        let fullSystemPrompt = LIFEBEAT_SYSTEM_PROMPT + patientContext;
+        
+        if (isOllama) {
+            fullSystemPrompt += `\n\nCRITICAL: You are running in LOCAL MODE and do not support JSON tools. If you need to admit a patient to the database, you MUST include this exact string format in your response: [ADMIT: patient_name | symptoms: their_symptoms].`;
+        }
 
         // Replace or inject the system message — ALWAYS use our LifeBeat prompt
         const sysIdx = cleanMessages.findIndex(m => m.role === 'system');
@@ -220,16 +235,6 @@ export async function POST(req: Request) {
         } else {
             cleanMessages.unshift({ role: 'system', content: fullSystemPrompt });
         }
-
-        // ─────────────────────────────────────────────────────────────────
-        // PROVIDER ROUTING
-        // ─────────────────────────────────────────────────────────────────
-        const requestedModel = typeof payload.model === 'string' ? payload.model : 'groq/llama-3.1-8b-instant';
-        const isOllama = requestedModel.startsWith('ollama/');
-        const isNvidia = requestedModel.startsWith('nvidia/');
-        const isOpenAI = requestedModel.startsWith('openai/');
-        const isAICredit = requestedModel.startsWith('aicredit/');
-        const isGoogle = requestedModel.startsWith('google/');
         
         let dbKeys: any[] = [];
         try {
@@ -383,11 +388,19 @@ export async function POST(req: Request) {
                     temperature: typeof payload.temperature === 'number' ? payload.temperature : 0.7
                 });
             } catch (fallbackErr: any) {
-                console.error("[chat] Primary provider failed completely, falling back to OpenRouter:", fallbackErr.message);
-                const openRouterClient = new OpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: getKey('openrouter', process.env.OPENROUTER_API_KEY) });
+                if (isOllama) {
+                    console.error("[chat] Ollama provider failed completely. Skipping fallback per user request.", fallbackErr.message);
+                    return new Response(
+                        JSON.stringify({ error: { message: "Local MedGemma failed: " + fallbackErr.message } }),
+                        { status: 500, headers: { 'Content-Type': 'application/json' } }
+                    );
+                }
+
+                console.error("[chat] Primary provider failed completely, falling back to AICredit Gemini:", fallbackErr.message);
+                const aiCreditClient = new OpenAI({ baseURL: getKey('aicredit_url', 'https://api.aicredits.in/v1'), apiKey: getKey('aicredit', process.env.AICREDIT_API_KEY || '') });
                 
-                actualModel = 'google/gemini-2.5-flash-free'; // Outstanding multimodal support
-                client = openRouterClient; // Switch client for the rest of the request
+                actualModel = 'google/gemini-2.5-flash'; 
+                client = aiCreditClient; 
                 
                 initialResponse = await client.chat.completions.create({
                     model: actualModel,
@@ -399,6 +412,25 @@ export async function POST(req: Request) {
         }
 
         const message = initialResponse.choices[0].message;
+
+        // ─────────────────────────────────────────────────────────────────
+        // LOCAL OLLAMA INTENT PARSER (Polyfill for Tool Calls)
+        // ─────────────────────────────────────────────────────────────────
+        if (isOllama && typeof message.content === 'string') {
+            const admitMatch = message.content.match(/\[ADMIT:\s*(.+?)\s*\|\s*symptoms:\s*(.+?)\]/i);
+            if (admitMatch) {
+                if (!message.tool_calls) message.tool_calls = [];
+                message.tool_calls.push({
+                    id: 'call_local_' + Date.now(),
+                    type: 'function',
+                    function: {
+                        name: 'admit_patient',
+                        arguments: JSON.stringify({ patientName: admitMatch[1].trim(), symptoms: admitMatch[2].trim() })
+                    }
+                });
+                console.log("[agent] Local MedGemma intent parsed successfully:", admitMatch[1]);
+            }
+        }
 
         // ─────────────────────────────────────────────────────────────────
         // TOOL CALL EXECUTION
@@ -437,6 +469,7 @@ export async function POST(req: Request) {
                             where: { name: { contains: args.patientName, mode: 'insensitive' } },
                             include: { triageRecords: { orderBy: { createdAt: 'desc' }, take: 5 } }
                         });
+                        if (patients.length > 0) logAudit("SEARCH_RECORD", `Agent searched for patient ${args.patientName}`, patients[0].id);
                         result = { success: true, count: patients.length, patients };
                     } else if (funcName === 'search_patients_by_condition') {
                         const patients = await prisma.patient.findMany({
@@ -455,6 +488,7 @@ export async function POST(req: Request) {
                             where: { id: args.patientId },
                             data: { details: args.newDetails }
                         });
+                        logAudit("UPDATE_RECORD", `Agent updated medical details`, updated.id);
                         result = { success: true, message: "Medical record updated successfully.", patient: updated };
                     } else if (funcName === 'admit_patient') {
                         const newPatient = await prisma.patient.create({
@@ -472,6 +506,7 @@ export async function POST(req: Request) {
                             },
                             include: { triageRecords: true }
                         });
+                        logAudit("ADMIT_PATIENT", `Agent admitted new patient: ${args.patientName}`, newPatient.id);
                         result = { success: true, message: `Patient ${args.patientName} has been successfully admitted and added to the Patient Queue.`, patient: newPatient };
                     } else {
                         result = { error: 'Unknown tool' };
@@ -492,7 +527,8 @@ export async function POST(req: Request) {
                 model: actualModel,
                 messages: cleanMessages,
                 stream: true,
-                temperature: typeof payload.temperature === 'number' ? payload.temperature : 0.7
+                temperature: typeof payload.temperature === 'number' ? payload.temperature : 0.7,
+                ...(supportsTools ? { tools: clinicTools as any } : {})
             });
         } else {
             // No tool calls — simulate streaming

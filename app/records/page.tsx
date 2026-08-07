@@ -158,7 +158,7 @@ export default function MedicalRecordsPage() {
     return (
         <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
             {/* LEFT PANE - Patient List */}
-            <div className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10">
+            <div className={`bg-white border-r border-slate-200 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 w-full md:w-80 shrink-0 pl-14 md:pl-0 ${selectedPatient ? 'hidden md:flex' : 'flex'}`}>
                 <div className="p-6 border-b border-slate-100">
                     <h2 className="text-xl font-bold text-slate-800 tracking-tight mb-4 flex items-center gap-2">
                         <User className="h-5 w-5 text-blue-500" />
@@ -206,13 +206,19 @@ export default function MedicalRecordsPage() {
             </div>
 
             {/* RIGHT PANE - Patient Details */}
-            <div className="flex-1 overflow-y-auto bg-slate-50/50 relative">
+            <div className={`flex-1 overflow-y-auto bg-slate-50/50 relative ${!selectedPatient ? 'hidden md:block' : 'block'}`}>
                 {selectedPatient ? (
-                    <div className="max-w-5xl mx-auto p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="max-w-6xl mx-auto p-6 md:p-8 lg:p-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         
                         {/* Header */}
-                        <div className="flex items-center justify-between mb-8">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-8">
                             <div>
+                                <button 
+                                    onClick={() => setSelectedPatient(null)} 
+                                    className="md:hidden mb-6 text-slate-500 hover:text-blue-600 text-sm font-bold flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm"
+                                >
+                                    ← Back to Patient List
+                                </button>
                                 {isEditing ? (
                                     <input 
                                         type="text" 

@@ -3,13 +3,21 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, BarChart3, Activity, MessageSquare, Trash2, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, BarChart3, Activity, MessageSquare, Trash2, Plus, Menu, X, Cpu, ScanSearch, Watch, ShieldCheck } from 'lucide-react';
 
 export default function Sidebar() {
     const pathname = usePathname();
     const [history, setHistory] = useState<any[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash');
+    const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
+        // Load model preference
+        const savedModel = localStorage.getItem('llm_model');
+        if (savedModel) {
+            setSelectedModel(savedModel);
+        }
+
         const loadHistory = () => {
             const saved = localStorage.getItem('lifebeat_chat_history');
             if (saved) {
@@ -43,10 +51,36 @@ export default function Sidebar() {
         { name: 'Patient Queue', href: '/queue', icon: Users },
         { name: 'Medical Records', href: '/records', icon: FileText },
         { name: 'Analytics & Metrics', href: '/analytics', icon: BarChart3 },
+        { name: 'X-Ray Analyzer', href: '/analyzer', icon: ScanSearch },
+        { name: 'Wearable Simulator', href: '/wearables', icon: Watch },
+        { name: 'HIPAA Audit Logs', href: '/audit', icon: ShieldCheck },
     ];
 
     return (
-        <aside className="w-[280px] bg-white border-r border-slate-200/60 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 flex-shrink-0">
+        <>
+            {/* Mobile Hamburger Button */}
+            <button 
+                onClick={() => setIsOpen(true)}
+                className="md:hidden fixed top-4 left-4 z-50 p-2.5 bg-white rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-slate-200/60 text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+                <Menu className="w-5 h-5" />
+            </button>
+            
+            {/* Mobile Backdrop Overlay */}
+            {isOpen && (
+                <div 
+                    className="md:hidden fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 transition-opacity"
+                    onClick={() => setIsOpen(false)}
+                />
+            )}
+
+            <aside className={`fixed md:static inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-slate-200/60 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] flex-shrink-0 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+                <button 
+                    onClick={() => setIsOpen(false)} 
+                    className="md:hidden absolute top-5 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                    <X className="w-5 h-5" />
+                </button>
             <div className="p-8 pb-6 flex items-center gap-3">
                 <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl shadow-lg shadow-blue-500/20">
                     <Activity className="h-6 w-6 text-white" />
@@ -93,11 +127,45 @@ export default function Sidebar() {
                 </div>
             </nav>
             
-            <div className="p-6 mt-auto">
+            <div className="p-6 mt-auto space-y-4">
+                {/* Model Selector */}
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">AI Model Selection</h3>
+                    <div className="flex flex-col gap-2">
+                        <button 
+                            onClick={() => {
+                                localStorage.setItem('llm_model', 'ollama/medgemma:4b');
+                                setSelectedModel('ollama/medgemma:4b');
+                                window.dispatchEvent(new Event('chatHistoryUpdated'));
+                            }}
+                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold transition-all ${selectedModel === 'ollama/medgemma:4b' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300'}`}
+                        >
+                            <span>MedGemma (Local)</span>
+                            {selectedModel === 'ollama/medgemma:4b' && <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>}
+                        </button>
+                        <button 
+                            onClick={() => {
+                                localStorage.setItem('llm_model', 'google/gemini-2.5-flash');
+                                setSelectedModel('google/gemini-2.5-flash');
+                                window.dispatchEvent(new Event('chatHistoryUpdated'));
+                            }}
+                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold transition-all ${selectedModel === 'google/gemini-2.5-flash' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300'}`}
+                        >
+                            <span>Gemini 2.5 (Cloud)</span>
+                            {selectedModel === 'google/gemini-2.5-flash' && <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Server Status */}
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
                     <div className="flex items-center gap-2 text-xs font-bold mb-4 text-emerald-700 bg-emerald-100/50 px-3 py-1.5 rounded-full w-fit border border-emerald-200/50">
                         <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                        Edge AI Server ONLINE
+                        {selectedModel === 'ollama/medgemma:4b' ? 'Local AI Active (Private)' : 'Edge AI Server ONLINE'}
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-slate-500 font-medium mb-4">
+                        <span>Latency</span>
+                        <span className="text-emerald-600 font-bold">{selectedModel === 'ollama/medgemma:4b' ? '12ms' : '24ms'}</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-md">
@@ -111,5 +179,6 @@ export default function Sidebar() {
                 </div>
             </div>
         </aside>
+        </>
     );
 }

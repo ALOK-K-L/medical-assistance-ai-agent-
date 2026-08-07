@@ -6,6 +6,7 @@ import { Users, AlertCircle, CheckCircle, Clock, Plus, Search, Filter, Activity,
 export default function PatientQueuePage() {
     const [queue, setQueue] = useState<any[]>([]);
     const [showAdmitModal, setShowAdmitModal] = useState(false);
+    const [telemetry, setTelemetry] = useState<any>(null);
     
     // Admit Form State
     const [unstructuredText, setUnstructuredText] = useState('');
@@ -28,7 +29,23 @@ export default function PatientQueuePage() {
     useEffect(() => {
         fetchQueue();
         const interval = setInterval(fetchQueue, 5000);
-        return () => clearInterval(interval);
+        
+        // IoT Telemetry Polling
+        const fetchTelemetry = async () => {
+            try {
+                const res = await fetch('/api/telemetry');
+                if (res.ok) {
+                    setTelemetry(await res.json());
+                }
+            } catch (e) {}
+        };
+        fetchTelemetry();
+        const telemetryInterval = setInterval(fetchTelemetry, 2000);
+        
+        return () => {
+            clearInterval(interval);
+            clearInterval(telemetryInterval);
+        };
     }, []);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,9 +124,17 @@ export default function PatientQueuePage() {
         <main className="flex-1 flex flex-col h-full overflow-y-auto p-8 bg-[#0F1115] relative">
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-            <div className="flex justify-between items-end mb-8 relative z-10">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-8 relative z-10 pl-12 md:pl-0">
                 <div>
-                    <h2 className="text-3xl font-bold text-white tracking-tight mb-1">Patient Queue</h2>
+                    <h2 className="text-3xl font-bold text-white tracking-tight mb-1 flex items-center gap-3">
+                        Patient Queue
+                        {telemetry && (
+                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-3 py-1 rounded-full font-mono flex items-center gap-2 tracking-widest uppercase">
+                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                Live IoT: HR {telemetry.vitals.heartRate} | SpO2 {telemetry.vitals.oxygenSaturation}%
+                            </span>
+                        )}
+                    </h2>
                     <p className="text-slate-400 text-sm font-medium">Live AI-Assisted Patient Prioritization</p>
                 </div>
                 <div className="flex items-center gap-6">
@@ -126,7 +151,7 @@ export default function PatientQueuePage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-5 mb-8 relative z-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8 relative z-10">
                 <div className="bg-white rounded-2xl p-5 shadow-lg shadow-black/5 flex flex-col justify-between h-32 border border-slate-100/50">
                     <div className="flex justify-between items-start">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Active</span>
@@ -164,7 +189,7 @@ export default function PatientQueuePage() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-xl shadow-black/10 overflow-hidden flex-1 flex flex-col min-h-0 text-slate-800 border border-slate-100/50 relative z-10">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white/50 backdrop-blur-md">
+                <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/50 backdrop-blur-md">
                     <h3 className="font-bold text-xl text-slate-800">Active Patient Queue</h3>
                     <div className="flex gap-3">
                         <div className="relative group">
@@ -177,7 +202,7 @@ export default function PatientQueuePage() {
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto overflow-x-auto w-full">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b-2 border-slate-100 text-xs font-bold uppercase tracking-wider text-slate-400 bg-slate-50/50 sticky top-0 z-10">

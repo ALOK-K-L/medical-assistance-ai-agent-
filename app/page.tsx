@@ -288,7 +288,7 @@ function CopilotDashboard() {
                 console.warn('Could not play ringtone:', audioErr);
             }
 
-            // Use Gemini Flash via AICredit custom LLM
+            // Start Vapi Call with inline config (using default voice)
             await vapi.start({
                 name: "LifeBeat Agent",
                 firstMessage: "LifeBeat Clinical Intelligence is online. How can I assist you today, doctor?",
@@ -297,11 +297,7 @@ function CopilotDashboard() {
                     model: "google/gemini-2.5-flash",
                     url: `${process.env.NEXT_PUBLIC_NGROK_URL || "https://carriable-superseriously-jovanni.ngrok-free.dev"}/api/custom-llm`,
                     messages: [{ role: "system", content: systemPrompt }]
-                } as any,
-                voice: {
-                    provider: "11labs",
-                    voiceId: "cgSgspJ2msm6clMCkdW9"
-                }
+                } as any
             });
 
         } catch (err: any) {
@@ -497,19 +493,28 @@ function CopilotDashboard() {
             if (!reader) throw new Error('No reader');
 
             let assistantResponse = '';
+            let buffer = '';
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                
+                // Keep the last incomplete line in the buffer
+                buffer = lines.pop() || ''; 
+                
                 for (const line of lines) {
+                    if (line.trim().length === 0) continue;
                     if (line.startsWith('data: ') && !line.includes('[DONE]')) {
                         try {
                             const data = JSON.parse(line.slice(6));
-                            if (data.choices[0]?.delta?.content) {
+                            if (data.choices && data.choices[0]?.delta?.content) {
                                 assistantResponse += data.choices[0].delta.content;
                             }
-                        } catch (parseErr) { /* skip */ }
+                        } catch (parseErr) {
+                            // Silently skip parse errors from malformed chunks
+                        }
                     }
                 }
             }
@@ -529,7 +534,7 @@ function CopilotDashboard() {
     return (
         <main className="flex-1 flex flex-col h-full bg-slate-50 relative overflow-hidden">
             {/* HEADER */}
-            <div className="flex justify-between items-center p-6 bg-white border-b border-slate-200/60 shadow-sm relative z-10 shrink-0">
+            <div className="flex justify-between items-center p-4 pl-16 md:p-6 bg-white border-b border-slate-200/60 shadow-sm relative z-10 shrink-0">
                 <div className="flex items-center gap-4">
                     <div className="p-2.5 bg-blue-50 rounded-xl border border-blue-100 text-blue-600">
                         <Stethoscope className="h-7 w-7" />
@@ -664,7 +669,7 @@ function CopilotDashboard() {
                             <h3 className="text-3xl font-extrabold text-slate-800 mb-3">How can I assist you today?</h3>
                             <p className="text-slate-500 max-w-lg mb-8 font-medium">Type a clinical query, attach medical images for analysis, or tap the phone icon to start a voice session with Gemini.</p>
 
-                            <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
                                 <button className="p-5 bg-white hover:bg-red-50 rounded-2xl border border-slate-200 shadow-sm text-left transition-all hover:shadow-md group">
                                     <AlertCircle className="h-6 w-6 text-red-500 mb-3 group-hover:scale-110 transition-transform" />
                                     <div className="text-sm font-bold text-slate-800 mb-1">Drug Interaction Check</div>
